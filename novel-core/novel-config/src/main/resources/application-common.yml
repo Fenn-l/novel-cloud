@@ -1,0 +1,105 @@
+# ============================================================================
+# 所有业务微服务共享的公共配置（各服务通过 spring.profiles.include: common 引入）
+#
+# 设计原则：只保留「真实生效、能在面试里讲清楚」的配置。
+#   - 已下线 ShardingSphere-JDBC：分片规则要求 book_content0..9，而 doc/sql/init.sql
+#     只有 book_content 单表；运行日志里也没有任何 Logic SQL / Actual SQL 分片痕迹，
+#     属于"配置写了、实际没跑起来"的摆设。下线后单一 DataSource，行为确定。
+#   - 已下线 Nacos 配置中心：见 bootstrap-common.yml，本地开发配置一律以本文件为准。
+#   - 保留 MySQL / Redis / RabbitMQ：分别支撑持久化、缓存与章节发布事件。
+# ============================================================================
+spring:
+  cloud:
+    nacos:
+      discovery:
+        # 只使用 Nacos 的服务注册与发现，Feign 通过 lb://服务名 做客户端负载均衡
+        server-addr: 127.0.0.1:8848
+    openfeign:
+      lazy-attributes-resolution: true
+
+feign:
+  sentinel:
+    # 启用 Feign 的 Sentinel 适配器，使各 Feign 接口的 fallback 在调用异常时生效。
+    # 注意：本项目没有配 dashboard、也没有限流/熔断规则，fallback 只在「调用抛异常」时触发，
+    # 不等于完整的熔断降级。这一取舍在 doc/面试讲解.md 里有说明。
+    enabled: true
+
+--- # -------------------------- 通用配置 -------------------------
+spring:
+  jackson:
+    generator:
+      # JavaScript 的 Number 是 IEEE 754 双精度（尾数仅 51 位），无法精确表示 Long 型雪花 ID。
+      # 统一把数字序列化为字符串返回，避免前端拿到被截断的 bookId / userId。
+      write-numbers-as-strings: true
+
+--- # -------------------------- 数据库配置 ------------------------
+spring:
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/novel-cloud?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai
+    username: root
+    password: zxcv1234
+  # 这里只保留一个 DataSource。此前额外配置的 spring.shardingsphere.datasource.ds_0
+  # 会再建一个 Hikari 连接池，两个池并存且分片规则与实际 DDL 不符，已移除。
+
+--- # -------------------------- 中间件配置 ------------------------
+spring:
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      # 与 doc/docker 中间件保持一致；生产环境应改为环境变量注入而非明文
+      password: 123456
+
+  rabbitmq:
+    # 与 doc/docker 中间件（RABBITMQ_DEFAULT_USER/PASS）保持一致：admin / admin123
+    addresses: "amqp://admin:admin123@127.0.0.1:5672"
+    virtual-host: /
+    # 生产者确认：broker 收到消息后回调 ConfirmCallback。
+    # 发布章节的事务一旦提交就无法回滚，所以必须能感知"消息发送失败"，
+    # AmqpMsgManager 在回调里把失败消息写入 Redis 待重放列表，避免静默丢失。
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      # mandatory=true 时，交换机无法把消息路由到任何队列会触发 ReturnCallback
+      mandatory: true
+      retry:
+        enabled: true
+        max-attempts: 3
+        initial-interval: "3s"
+    listener:
+      simple:
+        # 消费失败不重回原队列（避免毒消息无限循环），交给死信交换机路由到死信队列
+        default-requeue-rejected: false
+        retry:
+          enabled: false
+
+  amqp:
+    # 自定义开关：关闭后发布章节不再投递 MQ，用于本机没装 RabbitMQ 时单独跑通写链路。
+    # 关闭期间 ES 索引不会增量更新，可手动触发 XXL-JOB 的 saveToEsJobHandler 全量兜底。
+    enabled: true
+
+--- # -------------------------- 安全配置 --------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        # 原来暴露 "*" 会把 /env、/beans、/heapdump 一起开放，泄露数据库口令与堆内存。
+        # 这里只开放健康检查与指标；需要全量端点时用独立 profile 在内网放开。
+        include: health,info,metrics
+  info:
+    env:
+      enabled: true
+  health:
+    rabbit:
+      enabled: true
+    elasticsearch:
+      enabled: true
+
+--- # -------------------------- 自定义配置 ------------------------
+novel:
+  # XSS 过滤（只保留 XssFilter 这一层；原先 GlobalJsonDeserializer 会对所有入参字符串
+  # 做 <> 转义，包括密码，属于重复过滤且会破坏原始数据，已移除）
+  xss:
+    enabled: true
+    excludes:
+      - /system/notice/*

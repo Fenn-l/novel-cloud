@@ -1,0 +1,11 @@
+spring:
+  cloud:
+    nacos:
+      # 本地开发关闭 Nacos 配置中心，统一使用 novel-config 中的 application-common.yml 本地配置
+      config:
+        enabled: false
+        server-addr: 127.0.0.1:8848
+        file-extension: yml
+      # 服务发现仍走 Nacos（网关 lb:// 路由需要）
+      discovery:
+        server-addr: 127.0.0.1:8848

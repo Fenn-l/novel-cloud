@@ -1,0 +1,67 @@
+# 小说搜索索引 mapping（必须手工在 ES 里执行一次，代码不会自动建索引）
+# 早期 mapping 缺 isVip / commentCount，而 BookEsRespDto 会写入这两个字段：
+# 之前靠 ES 动态映射兜底，字段类型不可控；这里显式声明，便于 isVip、bookStatus 参与 term 过滤。
+# 注意：已经建好的旧索引无法直接改 mapping，需删除索引后重建，并重新跑 XXL-JOB 全量同步。
+PUT /book
+{
+  "mappings" : {
+    "properties" : {
+      "id" : {
+        "type" : "long"
+      },
+      "authorId" : {
+        "type" : "long"
+      },
+      "authorName" : {
+        "type" : "text"
+      },
+      "bookName" : {
+        "type" : "text"
+      },
+      "bookDesc" : {
+        "type" : "text"
+      },
+      "bookStatus" : {
+        "type" : "short"
+      },
+      "isVip" : {
+        "type" : "short"
+      },
+      "commentCount" : {
+        "type" : "integer"
+      },
+      "categoryId" : {
+        "type" : "integer"
+      },
+      "categoryName" : {
+        "type" : "text"
+      },
+      "lastChapterId" : {
+        "type" : "long"
+      },
+      "lastChapterName" : {
+        "type" : "text"
+      },
+      "lastChapterUpdateTime" : {
+        "type": "long"
+      },
+      "picUrl" : {
+        "type" : "keyword",
+        "index" : false,
+        "doc_values" : false
+      },
+      "score" : {
+        "type" : "integer"
+      },
+      "wordCount" : {
+        "type" : "integer"
+      },
+      "workDirection" : {
+        "type" : "short"
+      },
+      "visitCount" : {
+        "type": "long"
+      }
+    }
+  }
+}

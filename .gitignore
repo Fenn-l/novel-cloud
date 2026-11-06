@@ -1,0 +1,9 @@
+**/logs
+**/.idea
+**/cachedata
+**/target
+**/*.iml
+
+# 本地工作笔记与环境密码文件（不上传）
+.workbuddy/
+doc/docker/.env

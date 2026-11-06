@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="io.github.xxyopen.novel.book.dao.mapper.BookInfoMapper">
+
+    <!--
+      点击量原子自增。
+      业务取舍：详情页的 visitCount 来自 bookInfoCache（Caffeine，18h TTL），
+      这里只更新 DB、不主动失效缓存 —— 因为详情页每次浏览都会 +1，
+      若每次都清缓存，等于把「读多写少」的详情页变成每次回源 DB，缓存彻底失效。
+      点击量是展示型指标而非交易型数据，允许 TTL 内的滞后；
+      真正要求准确的点击榜 visit_rank 走独立的 Redis 榜单缓存，按固定周期重算。
+      （面试常被追问，口径见 doc/面试讲解.md）
+    -->
+    <update id="addVisitCount">
+        update book_info
+        set visit_count = visit_count + 1
+        where id = #{bookId}
+    </update>
+
+</mapper>
