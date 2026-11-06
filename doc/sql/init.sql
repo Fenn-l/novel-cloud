@@ -1,64 +1,23 @@
 CREATE database if NOT EXISTS `novel-cloud` default character set utf8mb4 collate utf8mb4_unicode_ci;
 use `novel-cloud`;
+-- ============================================================
+-- 业务库 novel-cloud：只保留当前项目代码实际使用的 14 张表。
+-- 已移除 19 张零引用表（单体版遗留 / 未实现功能 / 测试表）：
+--   author_code, author_income, author_income_detail,
+--   book_comment_copy1, book_comment_reply,
+--   pay_alipay, pay_wechat,
+--   sys_log, sys_menu, sys_role, sys_role_menu, sys_user, sys_user_role,
+--   test, user_comment, user_comment_reply, user_consume_log,
+--   user_pay_log, user_read_history
+-- 依据：全项目 @TableName / Mapper / XML / yml 检索，以上表无任何业务引用。
+-- 若已有旧库需要同步删除这些表，请执行 doc/sql/cleanup-unused-tables.sql。
+-- 注意：nacos 与 xxl_job 是独立数据库（本文件后半段），属于中间件，务必保留。
+-- ============================================================
+
+
 
 SET NAMES utf8mb4;
 
--- ----------------------------
--- Table structure for author_code
--- ----------------------------
-DROP TABLE IF EXISTS `author_code`;
-CREATE TABLE `author_code`
-(
-    `id`            bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `invite_code`   varchar(100) NOT NULL COMMENT '邀请码',
-    `validity_time` datetime     NOT NULL COMMENT '有效时间',
-    `is_used`       tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '是否使用过;0-未使用 1-使用过',
-    `create_time`   datetime DEFAULT NULL COMMENT '创建时间',
-    `update_time`   datetime DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `idx_code` (`invite_code`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='作家邀请码';
-
--- ----------------------------
--- Table structure for author_income
--- ----------------------------
-DROP TABLE IF EXISTS `author_income`;
-CREATE TABLE `author_income`
-(
-    `id`               bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `author_id`        bigint(20) unsigned NOT NULL COMMENT '作家ID',
-    `book_id`          bigint(20) unsigned NOT NULL COMMENT '小说ID',
-    `income_month`     date NOT NULL COMMENT '收入月份',
-    `pre_tax_income`   int(10) unsigned NOT NULL DEFAULT '0' COMMENT '税前收入;单位：分',
-    `after_tax_income` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '税后收入;单位：分',
-    `pay_status`       tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '支付状态;0-待支付 1-已支付',
-    `confirm_status`   tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '稿费确认状态;0-待确认 1-已确认',
-    `detail`           varchar(255) DEFAULT NULL COMMENT '详情',
-    `create_time`      datetime     DEFAULT NULL COMMENT '创建时间',
-    `update_time`      datetime     DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='稿费收入统计';
-
--- ----------------------------
--- Table structure for author_income_detail
--- ----------------------------
-DROP TABLE IF EXISTS `author_income_detail`;
-CREATE TABLE `author_income_detail`
-(
-    `id`             bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `author_id`      bigint(20) unsigned NOT NULL COMMENT '作家ID',
-    `book_id`        bigint(20) unsigned NOT NULL DEFAULT '0' COMMENT '小说ID;0表示全部作品',
-    `income_date`    date NOT NULL COMMENT '收入日期',
-    `income_account` int(10) unsigned NOT NULL DEFAULT '0' COMMENT '订阅总额',
-    `income_count`   int(10) unsigned NOT NULL DEFAULT '0' COMMENT '订阅次数',
-    `income_number`  int(10) unsigned NOT NULL DEFAULT '0' COMMENT '订阅人数',
-    `create_time`    datetime DEFAULT NULL COMMENT '创建时间',
-    `update_time`    datetime DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='稿费收入明细统计';
 
 -- ----------------------------
 -- Table structure for author_info
@@ -137,41 +96,6 @@ CREATE TABLE `book_comment`
     UNIQUE KEY `pk_id` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='小说评论';
 
--- ----------------------------
--- Table structure for book_comment_copy1
--- ----------------------------
-DROP TABLE IF EXISTS `book_comment_copy1`;
-CREATE TABLE `book_comment_copy1`
-(
-    `id`              bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `book_id`         bigint(20) unsigned NOT NULL COMMENT '评论小说ID',
-    `user_id`         bigint(20) unsigned NOT NULL COMMENT '评论用户ID',
-    `comment_content` varchar(512) NOT NULL COMMENT '评价内容',
-    `reply_count`     int(10) unsigned NOT NULL DEFAULT '0' COMMENT '回复数量',
-    `audit_status`    tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '审核状态;0-待审核 1-审核通过 2-审核不通过',
-    `create_time`     datetime DEFAULT NULL COMMENT '创建时间',
-    `update_time`     datetime DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bookId_userId` (`book_id`,`user_id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='小说评论';
-
--- ----------------------------
--- Table structure for book_comment_reply
--- ----------------------------
-DROP TABLE IF EXISTS `book_comment_reply`;
-CREATE TABLE `book_comment_reply`
-(
-    `id`            bigint(20) unsigned NOT NULL COMMENT '主键',
-    `comment_id`    bigint(20) unsigned NOT NULL COMMENT '评论ID',
-    `user_id`       bigint(20) unsigned NOT NULL COMMENT '回复用户ID',
-    `reply_content` varchar(512) NOT NULL COMMENT '回复内容',
-    `audit_status`  tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '审核状态;0-待审核 1-审核通过 2-审核不通过',
-    `create_time`   datetime DEFAULT NULL COMMENT '创建时间',
-    `update_time`   datetime DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='小说评论回复';
 
 -- ----------------------------
 -- Table structure for book_content
@@ -303,168 +227,6 @@ CREATE TABLE `news_info`
     UNIQUE KEY `pk_id` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='新闻信息';
 
--- ----------------------------
--- Table structure for pay_alipay
--- ----------------------------
-DROP TABLE IF EXISTS `pay_alipay`;
-CREATE TABLE `pay_alipay`
-(
-    `id`             bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `out_trade_no`   varchar(64) NOT NULL COMMENT '商户订单号',
-    `trade_no`       varchar(64) NOT NULL COMMENT '支付宝交易号',
-    `buyer_id`       varchar(16) DEFAULT NULL COMMENT '买家支付宝账号 ID',
-    `trade_status`   varchar(32) DEFAULT NULL COMMENT '交易状态;TRADE_SUCCESS-交易成功',
-    `total_amount`   int(10) unsigned NOT NULL COMMENT '订单金额;单位：分',
-    `receipt_amount` int(10) unsigned DEFAULT NULL COMMENT '实收金额;单位：分',
-    `invoice_amount` int(10) unsigned DEFAULT NULL COMMENT '开票金额',
-    `gmt_create`     datetime    DEFAULT NULL COMMENT '交易创建时间',
-    `gmt_payment`    datetime    DEFAULT NULL COMMENT '交易付款时间',
-    `create_time`    datetime    DEFAULT NULL COMMENT '创建时间',
-    `update_time`    datetime    DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`),
-    KEY              `uk_outTradeNo` (`out_trade_no`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='支付宝支付';
-
--- ----------------------------
--- Table structure for pay_wechat
--- ----------------------------
-DROP TABLE IF EXISTS `pay_wechat`;
-CREATE TABLE `pay_wechat`
-(
-    `id`               bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `out_trade_no`     varchar(32) NOT NULL COMMENT '商户订单号',
-    `transaction_id`   varchar(32) NOT NULL COMMENT '微信支付订单号',
-    `trade_type`       varchar(16)  DEFAULT NULL COMMENT '交易类型;JSAPI-公众号支付 NATIVE-扫码支付 APP-APP支付 MICROPAY-付款码支付 MWEB-H5支付 FACEPAY-刷脸支付',
-    `trade_state`      varchar(32)  DEFAULT NULL COMMENT '交易状态;SUCCESS-支付成功 REFUND-转入退款 NOTPAY-未支付 CLOSED-已关闭 REVOKED-已撤销（付款码支付） USERPAYING-用户支付中（付款码支付） PAYERROR-支付失败(其他原因，如银行返回失败)',
-    `trade_state_desc` varchar(255) DEFAULT NULL COMMENT '交易状态描述',
-    `amount`           int(10) unsigned NOT NULL COMMENT '订单总金额;单位：分',
-    `payer_total`      int(10) unsigned DEFAULT NULL COMMENT '用户支付金额;单位：分',
-    `success_time`     datetime     DEFAULT NULL COMMENT '支付完成时间',
-    `payer_openid`     varchar(128) DEFAULT NULL COMMENT '支付者用户标识;用户在直连商户appid下的唯一标识',
-    `create_time`      datetime     DEFAULT NULL COMMENT '创建时间',
-    `update_time`      datetime     DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`),
-    KEY                `uk_outTradeNo` (`out_trade_no`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='微信支付';
-
--- ----------------------------
--- Table structure for sys_log
--- ----------------------------
-DROP TABLE IF EXISTS `sys_log`;
-CREATE TABLE `sys_log`
-(
-    `id`          bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-    `user_id`     bigint(20) unsigned DEFAULT NULL COMMENT '用户id',
-    `username`    varchar(50)   DEFAULT NULL COMMENT '用户名',
-    `operation`   varchar(50)   DEFAULT NULL COMMENT '用户操作',
-    `time`        int(10) unsigned DEFAULT NULL COMMENT '响应时间',
-    `method`      varchar(200)  DEFAULT NULL COMMENT '请求方法',
-    `params`      varchar(5000) DEFAULT NULL COMMENT '请求参数',
-    `ip`          varchar(64)   DEFAULT NULL COMMENT 'IP地址',
-    `create_time` datetime      DEFAULT NULL COMMENT '创建时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统日志';
-
--- ----------------------------
--- Table structure for sys_menu
--- ----------------------------
-DROP TABLE IF EXISTS `sys_menu`;
-CREATE TABLE `sys_menu`
-(
-    `id`          bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-    `parent_id`   bigint(20) unsigned NOT NULL DEFAULT '0' COMMENT '父菜单ID;一级菜单为0',
-    `name`        varchar(50) NOT NULL COMMENT '菜单名称',
-    `url`         varchar(200) DEFAULT NULL COMMENT '菜单URL',
-    `type`        tinyint(3) unsigned NOT NULL COMMENT '类型;0-目录   1-菜单',
-    `icon`        varchar(50)  DEFAULT NULL COMMENT '菜单图标',
-    `sort`        tinyint(3) unsigned DEFAULT NULL COMMENT '排序',
-    `create_time` datetime     DEFAULT NULL COMMENT '创建时间',
-    `update_time` datetime     DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统菜单';
-
--- ----------------------------
--- Table structure for sys_role
--- ----------------------------
-DROP TABLE IF EXISTS `sys_role`;
-CREATE TABLE `sys_role`
-(
-    `id`          bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-    `role_name`   varchar(100) NOT NULL COMMENT '角色名称',
-    `role_sign`   varchar(100) DEFAULT NULL COMMENT '角色标识',
-    `remark`      varchar(100) DEFAULT NULL COMMENT '备注',
-    `create_time` datetime     DEFAULT NULL COMMENT '创建时间',
-    `update_time` datetime     DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色';
-
--- ----------------------------
--- Table structure for sys_role_menu
--- ----------------------------
-DROP TABLE IF EXISTS `sys_role_menu`;
-CREATE TABLE `sys_role_menu`
-(
-    `id`          bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-    `role_id`     bigint(20) unsigned NOT NULL COMMENT '角色ID',
-    `menu_id`     bigint(20) unsigned NOT NULL COMMENT '菜单ID',
-    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
-    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色与菜单对应关系';
-
--- ----------------------------
--- Table structure for sys_user
--- ----------------------------
-DROP TABLE IF EXISTS `sys_user`;
-CREATE TABLE `sys_user`
-(
-    `id`          bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-    `username`    varchar(50) NOT NULL COMMENT '用户名',
-    `password`    varchar(50) NOT NULL COMMENT '密码',
-    `name`        varchar(100) DEFAULT NULL COMMENT '真实姓名',
-    `sex`         tinyint(3) unsigned DEFAULT NULL COMMENT '性别;0-男 1-女',
-    `birth`       datetime     DEFAULT NULL COMMENT '出身日期',
-    `email`       varchar(100) DEFAULT NULL COMMENT '邮箱',
-    `mobile`      varchar(100) DEFAULT NULL COMMENT '手机号',
-    `status`      tinyint(3) unsigned NOT NULL DEFAULT '1' COMMENT '状态;0-禁用 1-正常',
-    `create_time` datetime     DEFAULT NULL COMMENT '创建时间',
-    `update_time` datetime     DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统用户';
-
--- ----------------------------
--- Table structure for sys_user_role
--- ----------------------------
-DROP TABLE IF EXISTS `sys_user_role`;
-CREATE TABLE `sys_user_role`
-(
-    `id`          bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-    `user_id`     bigint(20) unsigned NOT NULL COMMENT '用户ID',
-    `role_id`     bigint(20) unsigned NOT NULL COMMENT '角色ID',
-    `create_time` datetime DEFAULT NULL COMMENT '创建时间',
-    `update_time` datetime DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户与角色对应关系';
-
--- ----------------------------
--- Table structure for test
--- ----------------------------
-DROP TABLE IF EXISTS `test`;
-CREATE TABLE `test`
-(
-    `id`    int(11) NOT NULL,
-    `test`  tinyint(1) unsigned zerofill DEFAULT NULL,
-    `test2` tinyint(4) unsigned zerofill DEFAULT NULL,
-    PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
 -- Table structure for user_bookshelf
@@ -483,60 +245,6 @@ CREATE TABLE `user_bookshelf`
     UNIQUE KEY `pk_id` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户书架';
 
--- ----------------------------
--- Table structure for user_comment
--- ----------------------------
-DROP TABLE IF EXISTS `user_comment`;
-CREATE TABLE `user_comment`
-(
-    `id`              bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `user_id`         bigint(20) unsigned NOT NULL COMMENT '评论用户ID',
-    `book_id`         bigint(20) unsigned NOT NULL COMMENT '评论小说ID',
-    `comment_content` varchar(512) NOT NULL COMMENT '评价内容',
-    `reply_count`     int(10) unsigned NOT NULL DEFAULT '0' COMMENT '回复数量',
-    `audit_status`    tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '审核状态;0-待审核 1-审核通过 2-审核不通过',
-    `create_time`     datetime DEFAULT NULL COMMENT '创建时间',
-    `update_time`     datetime DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bookId_userId` (`book_id`,`user_id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户评论';
-
--- ----------------------------
--- Table structure for user_comment_reply
--- ----------------------------
-DROP TABLE IF EXISTS `user_comment_reply`;
-CREATE TABLE `user_comment_reply`
-(
-    `id`            bigint(20) unsigned NOT NULL COMMENT '主键',
-    `comment_id`    bigint(20) unsigned NOT NULL COMMENT '评论ID',
-    `user_id`       bigint(20) unsigned NOT NULL COMMENT '回复用户ID',
-    `reply_content` varchar(512) NOT NULL COMMENT '回复内容',
-    `audit_status`  tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '审核状态;0-待审核 1-审核通过 2-审核不通过',
-    `create_time`   datetime DEFAULT NULL COMMENT '创建时间',
-    `update_time`   datetime DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户评论回复';
-
--- ----------------------------
--- Table structure for user_consume_log
--- ----------------------------
-DROP TABLE IF EXISTS `user_consume_log`;
-CREATE TABLE `user_consume_log`
-(
-    `id`           bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `user_id`      bigint(20) unsigned NOT NULL COMMENT '消费用户ID',
-    `amount`       int(10) unsigned NOT NULL COMMENT '消费使用的金额;单位：屋币',
-    `product_type` tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '消费商品类型;0-小说VIP章节',
-    `product_id`   bigint(20) unsigned DEFAULT NULL COMMENT '消费的的商品ID;例如：章节ID',
-    `produc_name`  varchar(50) DEFAULT NULL COMMENT '消费的的商品名;例如：章节名',
-    `produc_value` int(10) unsigned DEFAULT NULL COMMENT '消费的的商品值;例如：1',
-    `create_time`  datetime    DEFAULT NULL COMMENT '创建时间',
-    `update_time`  datetime    DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户消费记录';
 
 -- ----------------------------
 -- Table structure for user_feedback
@@ -575,44 +283,6 @@ CREATE TABLE `user_info`
     UNIQUE KEY `pk_id` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户信息';
 
--- ----------------------------
--- Table structure for user_pay_log
--- ----------------------------
-DROP TABLE IF EXISTS `user_pay_log`;
-CREATE TABLE `user_pay_log`
-(
-    `id`            bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-    `user_id`       bigint(20) unsigned NOT NULL COMMENT '充值用户ID',
-    `pay_channel`   tinyint(3) unsigned NOT NULL DEFAULT '1' COMMENT '充值方式;0-支付宝 1-微信',
-    `out_trade_no`  varchar(64)  NOT NULL COMMENT '商户订单号',
-    `amount`        int(10) unsigned NOT NULL COMMENT '充值金额;单位：分',
-    `product_type`  tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT '充值商品类型;0-屋币 1-包年VIP',
-    `product_id`    bigint(20) unsigned DEFAULT NULL COMMENT '充值商品ID',
-    `product_name`  varchar(255) NOT NULL COMMENT '充值商品名;示例值：屋币',
-    `product_value` int(10) unsigned DEFAULT NULL COMMENT '充值商品值;示例值：255',
-    `pay_time`      datetime     NOT NULL COMMENT '充值时间',
-    `create_time`   datetime DEFAULT NULL COMMENT '创建时间',
-    `update_time`   datetime DEFAULT NULL COMMENT '更新时间',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户充值记录';
-
--- ----------------------------
--- Table structure for user_read_history
--- ----------------------------
-DROP TABLE IF EXISTS `user_read_history`;
-CREATE TABLE `user_read_history`
-(
-    `id`             bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `user_id`        bigint(20) unsigned NOT NULL COMMENT '用户ID',
-    `book_id`        bigint(20) unsigned NOT NULL COMMENT '小说ID',
-    `pre_content_id` bigint(20) unsigned NOT NULL COMMENT '上一次阅读的章节内容表ID',
-    `create_time`    datetime DEFAULT NULL COMMENT '创建时间;',
-    `update_time`    datetime DEFAULT NULL COMMENT '更新时间;',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_userId_bookId` (`user_id`,`book_id`),
-    UNIQUE KEY `pk_id` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户阅读历史';
 
 SET
 FOREIGN_KEY_CHECKS = 1;
